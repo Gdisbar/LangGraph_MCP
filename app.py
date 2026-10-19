@@ -41,7 +41,8 @@ def connection():
     con.row_factory = sqlite3.Row
     return con
 
-
+### create DB tables : skills per user, 
+### episodes & tool_events as append only logs
 def init_db():
     DB.parent.mkdir(parents=True, exist_ok=True)
     with connection() as con:
@@ -80,15 +81,16 @@ def init_db():
         for principal in ("alice", "bob"):
             con.execute("INSERT OR IGNORE INTO skills VALUES (?,?,?)",(principal, *skill))
 
-
+### read skills : per user_id
 def load_skills(user: str) -> str:
     with connection() as con:
         rows = con.execute("SELECT name, instructions FROM skills WHERE user_id=? ORDER BY name", (user,)).fetchall()
     return "\n".join(f"- {r['name']}: {r['instructions']}" for r in rows)
 
-
+### read episodes : per user_id (retrieval strategy used - recent-40 window 
+### → 4+-letter token overlap → top-3.)
 def search_episodes(user: str, question: str, limit: int = 3) -> list[dict]:
-    # Simple bounded lexical search (for demo); user_id filtering is enforced at SQL level.
+    # Simple bounded lexical search; user_id filtering is enforced at SQL level.
     tokens = set(re.findall(r"[a-zA-Z]{4,}", question.lower()))
     with connection() as con:
         rows = con.execute(
@@ -104,14 +106,16 @@ def search_episodes(user: str, question: str, limit: int = 3) -> list[dict]:
     ranked.sort(key=lambda x: x[0], reverse=True)
     return [item for _, item in ranked[:limit]]
 
-
+### insert tool_events : as Event logs (tool_name, 
+### status & other args - per thread_id)
 def log_event(user, thread_id, tool_name, args, status, detail):
     with connection() as con:
         con.execute("INSERT INTO tool_events VALUES (?,?,?,?,?,?,?,?)", (
             str(uuid.uuid4()), user, thread_id, now(), tool_name,
             json.dumps(args, default=str), status, str(detail)[:500]))
 
-
+### insert episodes : as Event logs (policy_ids,
+### saves Q&A + outcome - per thread_id)
 def save_episode(user, thread_id, request, answer, outcome, policy_ids):
     with connection() as con:
         con.execute("INSERT INTO episodes VALUES (?,?,?,?,?,?,?,?)", (
@@ -123,9 +127,14 @@ def build_graph(model, tools, principal, thread_id, checkpointer):
     tool_map = {t.name: t for t in tools}
     bound_model = model.bind_tools(tools)
 
+    ### recall - reset ONLY turn-scoped fields (budget, fetched policy IDs, outcome).
+    ### messages / user_id / new_turn are left intact; chat history comes from the
+    ### checkpointer, not from this node.
     async def recall(state: AgentState):
         return {"tool_calls_used": 0, "fetched_policy_ids": [], "outcome": "pending"}
 
+    ### system prompt (skills + episodes + tool budget + safety rules)
+    ### picks bound vs unbound model by budget and invokes with last 12 messages
     async def agent(state: AgentState):
         past = search_episodes(principal, state["new_turn"])
         episodic = json.dumps(past, ensure_ascii=False)[:4500]
@@ -147,6 +156,7 @@ def build_graph(model, tools, principal, thread_id, checkpointer):
         response = await active_model.ainvoke([system, *state["messages"][-12:]])
         return {"messages": [response]}
 
+    ### any tool_call goto middleware else goto memorize
     def route(state: AgentState):
         last = state["messages"][-1]
         if getattr(last, "tool_calls", None) and state["tool_calls_used"] < MAX_TOOL_CALLS_PER_TURN:
@@ -195,12 +205,20 @@ def build_graph(model, tools, principal, thread_id, checkpointer):
         return {"messages": results, "tool_calls_used": count,
                 "fetched_policy_ids": policy_ids}
 
+    ### at least one read_policy succeeded. The model could read a policy 
+    ### and then answer from prior knowledge — so "consulted" ≠ "grounded
     async def memorize(state: AgentState):
+        # final AIMessage of the turn
         last = state["messages"][-1]
+        # the text the user just saw
         answer = str(last.content)
+        # based on fetched_policy_ids
         outcome = "policy_consulted" if state["fetched_policy_ids"] else "no_policy_consulted"
-        save_episode(principal, thread_id, state["new_turn"], answer,
+        save_episode(principal, thread_id, 
+                     state["new_turn"],  # user's question this turn
+                     answer,
                      outcome, state["fetched_policy_ids"])
+        # surfaced in the CLI's [outcome=...] line
         return {"outcome": outcome}
 
     builder = StateGraph(AgentState)
