@@ -4,6 +4,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 ROOT = Path(__file__).resolve().parent / "policies"
+# PRINCIPAL == "alice" when we run python app.py --user alice --thread session1
 PRINCIPAL = os.environ.get("DEMO_PRINCIPAL", "")
 ACL = {
     "alice": {"refund": "alice_refund.md", "security": "alice_security.md"},
@@ -28,5 +29,6 @@ def read_policy(file_id: str) -> str:
     # No model-supplied paths; resolve only from fixed allowlist mapping.
     return (ROOT / filename).read_text(encoding="utf-8")
 
+# local MCP
 if __name__ == "__main__":
     mcp.run(transport="stdio")
