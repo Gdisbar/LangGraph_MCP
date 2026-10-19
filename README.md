@@ -275,10 +275,6 @@ PY
 
 **Verification note:** source has been syntax-checked; API integration and end-to-end model calls need running in your configured Python environment with dependencies and an API key.
 
-## Groq model backend
-
-This project uses `langchain_groq.ChatGroq` and reads `GROQ_API_KEY` from `.env`. The default model is `llama-3.3-70b-versatile`, which supports tool calls; set `MODEL` in `.env` to another Groq tool-capable model if preferred. The MCP server, user ACL, middleware, checkpoints and episodic/procedural memory remain unchanged.
-
 ### Run the application & Test
 
 ```bash
