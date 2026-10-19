@@ -88,7 +88,7 @@ def load_skills(user: str) -> str:
 
 
 def search_episodes(user: str, question: str, limit: int = 3) -> list[dict]:
-    # Simple bounded lexical search for demo; user_id filtering is enforced at SQL level.
+    # Simple bounded lexical search (for demo); user_id filtering is enforced at SQL level.
     tokens = set(re.findall(r"[a-zA-Z]{4,}", question.lower()))
     with connection() as con:
         rows = con.execute(
