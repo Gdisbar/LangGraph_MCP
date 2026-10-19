@@ -224,17 +224,17 @@ CLI (principal selected locally; demo only)
                                                      → back to agent node
 ```
 
-  LangGraph = the control plane: recall → agent ↔ middleware → memorize.
+  **LangGraph** = the control plane: recall → agent ↔ middleware → memorize.
 
-  agent = LLM, may emit tool calls; sees skills + episodes + budget in the system prompt.
+  **agent** = LLM, may emit tool calls; sees skills + episodes + budget in the system prompt.
 
-  middleware = the only place a tool ever runs; it's an allowlist + budget + arg-schema + audit wall — the model can't bypass it.
+  **middleware** = the only place a tool ever runs; it's an allowlist + budget + arg-schema + audit wall — the model can't bypass it.
 
-  memorize = writes the turn to episodes so the next turn's search_episodes can recall it.
+  **memorize** = writes the turn to episodes so the next turn's search_episodes can recall it.
 
-  AsyncSqliteSaver = the conversation's durable message history, keyed by alice:main etc.
+  **AsyncSqliteSaver** = the conversation's durable message history, keyed by alice:main etc.
 
-  MCP server = untrusted data source; the principal is fixed by DEMO_PRINCIPAL in the subprocess env, so the model can never choose who it reads policies for.
+  **MCP server** = untrusted data source; the principal is fixed by DEMO_PRINCIPAL in the subprocess env, so the model can never choose who it reads policies for.
 
 ### Memory persistence
 - `data/checkpoints.sqlite3`: LangGraph durable conversation checkpoints (user-prefixed thread IDs).
